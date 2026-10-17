@@ -41,9 +41,9 @@ APP_VERSION     = os.getenv("APP_VERSION", "1.0.0")
 # ── 1. Resource: identidad del servicio en toda la telemetría ─────────────────
 # El Resource viaja en cada señal (traza, métrica, log) para identificar el origen.
 resource = Resource.create({
-    SERVICE_NAME:    "service-a",
-    SERVICE_VERSION: APP_VERSION,
-    "deployment.environment": ENV,
+    SERVICE_NAME:    "service-a",          # Nombre del servicio en Jaeger/Grafana
+    SERVICE_VERSION: APP_VERSION,          # Para correlacionar incidentes con releases
+    "deployment.environment": ENV,         # production / staging / development
     "cloud.provider": os.getenv("CLOUD_PROVIDER", "gcp"),
     "host.name":     os.getenv("HOSTNAME", "local"),
 })
@@ -52,46 +52,49 @@ resource = Resource.create({
 tracer_provider = TracerProvider(resource=resource)
 otlp_span_exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, insecure=True)
 # BatchSpanProcessor: agrupa spans antes de enviar → reduce overhead de red
+tracer_provider = TracerProvider(resource=resource)
+otlp_span_exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, insecure=True)
+
+# BatchSpanProcessor: agrupa spans en memoria antes de enviarlos al Collector
+# → Reduce el overhead de red: en lugar de 1 request HTTP por span,
+#   envía lotes de hasta 512 spans cada 5 segundos
 tracer_provider.add_span_processor(BatchSpanProcessor(otlp_span_exporter))
-trace.set_tracer_provider(tracer_provider)
-tracer = trace.get_tracer("service-a", APP_VERSION)
 
 # ── 3. MeterProvider + Prometheus reader (scraping en :9090/metrics) ──────────
 # PrometheusMetricReader expone las métricas OTel en formato Prometheus
-otlp_metric_exporter = OTLPMetricExporter(endpoint=OTEL_ENDPOINT, insecure=True)
-otlp_metric_reader = PeriodicExportingMetricReader(otlp_metric_exporter, export_interval_millis=15000)
+prometheus_reader = PrometheusMetricReader()
+
+# Reader 2: envía métricas al Collector cada 15 segundos (OTLP push)
+otlp_metric_reader = PeriodicExportingMetricReader(
+    OTLPMetricExporter(endpoint=OTEL_ENDPOINT, insecure=True),
+    export_interval_millis=15000
+)
+
 meter_provider = MeterProvider(
     resource=resource,
-    metric_readers=[ otlp_metric_reader]
+    metric_readers=[prometheus_reader, otlp_metric_reader]  # Los dos simultáneamente
 )
-metrics.set_meter_provider(meter_provider)
-meter = metrics.get_meter("service-a", APP_VERSION)
 
-# ── 4. Instrumentos de métricas (SLIs) ───────────────────────────────────────
+# SLI-1: Disponibilidad
 http_requests_total = meter.create_counter(
     "http_requests_total",
-    description="Total HTTP requests recibidos por service-a",
-    unit="1",
+    description="Total HTTP requests recibidos",
 )
+# → Prometheus query: rate(http_requests_total{status=~"2.."}[5m]) / rate(http_requests_total[5m])
+
+# SLI-2: Latencia (histograma para percentiles p50/p95/p99)
 http_request_duration = meter.create_histogram(
     "http_request_duration_seconds",
-    description="Distribución de latencia de requests HTTP (p50/p95/p99)",
-    unit="s",
+    description="Distribución de latencia HTTP",
 )
-db_query_duration = meter.create_histogram(
-    "db_query_duration_seconds",
-    description="Latencia de queries a PostgreSQL",
-    unit="s",
-)
-service_b_calls_total = meter.create_counter(
-    "service_b_calls_total",
-    description="Llamadas HTTP a service-b",
-    unit="1",
-)
+# → Prometheus query: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+# SLI-3: Error Rate (derivado de http_requests_total con status=5xx)
+
+# SLI-4: Saturación
 active_requests = meter.create_up_down_counter(
     "http_active_requests",
-    description="Requests activos en vuelo (saturación)",
-    unit="1",
+    description="Requests activos en vuelo",
 )
 
 # ── 5. Logging estructurado JSON con trace_id/span_id ────────────────────────
@@ -100,14 +103,12 @@ class OtelJsonFormatter(jsonlogger.JsonFormatter):
     def add_fields(self, log_record, record, message_dict):
         super().add_fields(log_record, record, message_dict)
         span = trace.get_current_span()
-        ctx = span.get_span_context()
+        ctx  = span.get_span_context()
         if ctx and ctx.is_valid:
-            # Formato hexadecimal de 32 dígitos para trace_id (estándar W3C)
+            # trace_id en formato hexadecimal de 32 dígitos (estándar W3C)
             log_record["trace_id"] = format(ctx.trace_id, "032x")
             log_record["span_id"]  = format(ctx.span_id, "016x")
-        log_record["service"]     = "service-a"
-        log_record["version"]     = APP_VERSION
-        log_record["environment"] = ENV
+        log_record["service"] = "service-a"
 
 handler = logging.StreamHandler()
 handler.setFormatter(OtelJsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
@@ -115,12 +116,16 @@ logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger("service-a")
 
 # ── 6. Auto-instrumentación de librerías ─────────────────────────────────────
-# FastAPIInstrumentor crea spans automáticos para cada endpoint HTTP
-# HTTPXClientInstrumentor propaga el W3C TraceContext hacia service-b
-# Psycopg2Instrumentor crea spans para cada query SQL
 FastAPIInstrumentor().instrument(tracer_provider=tracer_provider)
+# → Crea automáticamente un span por cada endpoint HTTP
+# → Atributos: http.method, http.route, http.status_code, http.url
+
 HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
+# → Inyecta automáticamente el header W3C traceparent en cada llamada a service-b
+# → El header propagado: "traceparent: 00-{trace_id}-{span_id}-01"
+
 Psycopg2Instrumentor().instrument(tracer_provider=tracer_provider)
+# → Crea spans para cada query SQL con: db.statement, db.operation, db.name
 
 # ── Conexión DB ───────────────────────────────────────────────────────────────
 def get_db_connection():
@@ -168,16 +173,18 @@ async def get_order(order_id: str, request: Request):
     try:
         # ── Custom span: lógica de negocio DB ────────────────────────────────
         with tracer.start_as_current_span(
-            "fetch.order.db",
+            "fetch.order.db",                      # Nombre del span en Jaeger
             kind=trace.SpanKind.CLIENT,
             attributes={
                 "db.system":    "postgresql",
                 "db.operation": "SELECT",
-                "db.name":      "appdb",
-                "order.id":     order_id,
+                "order.id":     order_id,          # Atributo de negocio custom
             }
         ) as db_span:
-            db_start = time.time()
+            # El código dentro del `with` está cubierto por el span
+            # Si lanza una excepción, el span se marca como ERROR automáticamente
+            result = query_database(order_id)
+            db_span.set_attribute("order.status", result["status"])
             try:
                 conn = get_db_connection()
                 cur = conn.cursor()

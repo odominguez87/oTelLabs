@@ -11,7 +11,7 @@
 #   Jaeger UI:           http://localhost:16686
 #   Grafana:             http://localhost:3000 (admin/admin)
 #   Prometheus:          http://localhost:9091
-#   OTel Collector zpages: http://localhost:55679
+#   OTel Collector zpages: http://localhost:49410
 # ════════════════════════════════════════════════════════════════════════════
 
 networks:
@@ -53,17 +53,17 @@ services:
     command: ["--config=/etc/otel/collector-config.yaml"]
     volumes:
       - ./otel-collector/collector-config.yaml:/etc/otel/collector-config.yaml:ro
-      - //c/Users/Equipo/AppData/Roaming/gcloud/application_default_credentials.json:/etc/gcloud/adc.json:ro
+      - //c/Users/ingod/AppData/Roaming/gcloud/application_default_credentials.json:/etc/gcloud/adc.json:ro
     ports:
       - "4317:4317"    # OTLP gRPC
       - "4318:4318"    # OTLP HTTP
       - "8888:8888"    # Métricas internas del Collector
       - "8889:8889"    # Prometheus endpoint (métricas de los servicios)
       - "13133:13133"  # Health check
-      - "55679:55679"  # zPages (debug pipeline)
+      - "49410:55679"  # zPages (debug pipeline) -> http://localhost:49410
     environment:
       GOOGLE_APPLICATION_CREDENTIALS: /etc/gcloud/adc.json
-      GCP_PROJECT_ID: cicdtraining-498421
+      GCP_PROJECT_ID: cicdtraining-505323
       ENVIRONMENT: development
       CLOUD_REGION: us-central1
     networks:

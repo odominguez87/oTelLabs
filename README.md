@@ -484,7 +484,7 @@ python3 benchmark/analyze_overhead.py
 
 ```bash
 # 1. Clonar y navegar
-git clone https://github.com/mafeopa96/otel-lab
+# git clone https://github.com/odominguez87/oTelLabs (ya ejecutado crear)
 cd otel-lab
 
 # 2. Levantar el stack completo
@@ -619,7 +619,7 @@ aws ecs create-service \
 
 ```bash
 # 1. Verificar que el Collector está recibiendo datos
-curl http://localhost:55679/debug/tracez  # zPages del Collector
+curl http://localhost:49410/debug/tracez  # zPages del Collector
 
 # 2. Verificar que el Collector puede llegar a Jaeger
 docker compose logs otel-collector | grep -i "jaeger\|error\|failed"
