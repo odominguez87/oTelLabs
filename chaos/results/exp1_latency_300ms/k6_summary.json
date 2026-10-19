@@ -1,0 +1,30 @@
+{
+  "rate_objetivo_rps": 20,
+  "duracion_configurada": "225s",
+  "abortado": true,
+  "duracion_real_s": 194.044087,
+  "requests": 3470,
+  "rps": 17.88253408618424,
+  "error_rate_pct": 5.3314121037463975,
+  "latencia_ms": {
+    "avg": 1547.4465380403471,
+    "p50": 688.9404999999999,
+    "p90": 2539.1801000000005,
+    "p95": 9766.5982,
+    "p99": 15000.63406,
+    "max": 15213.786
+  },
+  "checks": [
+    {
+      "name": "status 200",
+      "passes": 3285,
+      "fails": 185
+    },
+    {
+      "name": "inventario disponible (no degradado)",
+      "passes": 3285,
+      "fails": 185
+    }
+  ],
+  "dropped_iterations": 186
+}

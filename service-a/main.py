@@ -21,6 +21,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.view import View, ExplicitBucketHistogramAggregation
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -51,14 +52,13 @@ resource = Resource.create({
 # ── 2. TracerProvider + OTLP exporter (gRPC → OTel Collector) ────────────────
 tracer_provider = TracerProvider(resource=resource)
 otlp_span_exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, insecure=True)
-# BatchSpanProcessor: agrupa spans antes de enviar → reduce overhead de red
-tracer_provider = TracerProvider(resource=resource)
-otlp_span_exporter = OTLPSpanExporter(endpoint=OTEL_ENDPOINT, insecure=True)
 
 # BatchSpanProcessor: agrupa spans en memoria antes de enviarlos al Collector
 # → Reduce el overhead de red: en lugar de 1 request HTTP por span,
 #   envía lotes de hasta 512 spans cada 5 segundos
 tracer_provider.add_span_processor(BatchSpanProcessor(otlp_span_exporter))
+trace.set_tracer_provider(tracer_provider)
+tracer = trace.get_tracer("service-a", APP_VERSION)
 
 # ── 3. MeterProvider + Prometheus reader (scraping en :9090/metrics) ──────────
 # PrometheusMetricReader expone las métricas OTel en formato Prometheus
@@ -70,10 +70,24 @@ otlp_metric_reader = PeriodicExportingMetricReader(
     export_interval_millis=15000
 )
 
+# Buckets en SEGUNDOS: los defaults del SDK (5, 10, 25 … 10000) asumen ms y
+# dejarían todos los requests en le=5 → histogram_quantile inservible.
+latency_view = View(
+    instrument_name="*_duration_seconds",
+    aggregation=ExplicitBucketHistogramAggregation(
+        [0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 3, 5, 7.5, 10]
+    ),
+)
+
 meter_provider = MeterProvider(
     resource=resource,
-    metric_readers=[prometheus_reader, otlp_metric_reader]  # Los dos simultáneamente
+    metric_readers=[prometheus_reader, otlp_metric_reader],  # Los dos simultáneamente
+    views=[latency_view],
 )
+metrics.set_meter_provider(meter_provider)
+meter = metrics.get_meter("service-a", APP_VERSION)
+
+# ── 4. Instrumentos de métricas (SLIs) ────────────────────────────────────────
 
 # SLI-1: Disponibilidad
 http_requests_total = meter.create_counter(
@@ -97,6 +111,17 @@ active_requests = meter.create_up_down_counter(
     description="Requests activos en vuelo",
 )
 
+# Métricas de dependencias
+db_query_duration = meter.create_histogram(
+    "db_query_duration_seconds",
+    description="Latencia de consultas a PostgreSQL",
+    unit="s",
+)
+service_b_calls_total = meter.create_counter(
+    "service_b_calls_total",
+    description="Llamadas a service-b por resultado",
+)
+
 # ── 5. Logging estructurado JSON con trace_id/span_id ────────────────────────
 # El trace_id en el log es el PUENTE que correlaciona log ↔ traza en Grafana.
 class OtelJsonFormatter(jsonlogger.JsonFormatter):
@@ -116,9 +141,7 @@ logging.basicConfig(level=logging.INFO, handlers=[handler])
 logger = logging.getLogger("service-a")
 
 # ── 6. Auto-instrumentación de librerías ─────────────────────────────────────
-FastAPIInstrumentor().instrument(tracer_provider=tracer_provider)
-# → Crea automáticamente un span por cada endpoint HTTP
-# → Atributos: http.method, http.route, http.status_code, http.url
+# FastAPI se instrumenta con instrument_app(app) después de crear la app (ver abajo)
 
 HTTPXClientInstrumentor().instrument(tracer_provider=tracer_provider)
 # → Inyecta automáticamente el header W3C traceparent en cada llamada a service-b
@@ -149,6 +172,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# instrument_app sobre la instancia: instrument() parchea fastapi.FastAPI, pero
+# este módulo ya importó la clase original, así que no tendría efecto.
+FastAPIInstrumentor.instrument_app(app, tracer_provider=tracer_provider)
+# → Crea automáticamente un span por cada endpoint HTTP
+# → Atributos: http.method, http.route, http.status_code, http.url
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/health")
@@ -168,7 +197,7 @@ async def get_order(order_id: str, request: Request):
     start = time.time()
     labels = {"endpoint": "/order", "method": "GET"}
     active_requests.add(1, labels)
-    http_requests_total.add(1, labels)
+    status_labels = {**labels, "status": "5xx"}  # se sobrescribe si el request termina bien
 
     try:
         # ── Custom span: lógica de negocio DB ────────────────────────────────
@@ -183,8 +212,7 @@ async def get_order(order_id: str, request: Request):
         ) as db_span:
             # El código dentro del `with` está cubierto por el span
             # Si lanza una excepción, el span se marca como ERROR automáticamente
-            result = query_database(order_id)
-            db_span.set_attribute("order.status", result["status"])
+            db_start = time.time()
             try:
                 conn = get_db_connection()
                 cur = conn.cursor()
@@ -199,6 +227,7 @@ async def get_order(order_id: str, request: Request):
                 db_query_duration.record(db_duration, {"operation": "SELECT", "table": "orders"})
 
                 if not row:
+                    status_labels = {**labels, "status": "4xx"}
                     db_span.set_status(trace.StatusCode.ERROR, "Order not found")
                     raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
 
@@ -253,14 +282,9 @@ async def get_order(order_id: str, request: Request):
                 service_b_calls_total.add(1, {"status": "error"})
                 sb_span.record_exception(e)
                 sb_span.set_status(trace.StatusCode.ERROR, str(e))
-                status_labels = {**labels, "status": f"{e.status_code // 100}xx"}
-                http_requests_total.add(1, status_labels)
+                status_labels = {**labels, "status": f"{e.response.status_code // 100}xx"}
                 logger.error("service-b call failed", extra={"error": str(e)})
                 inventory = {"available": -1, "error": "service-b unavailable"}
-
-        total_duration = time.time() - start
-        http_requests_total.add(1, status_labels)
-        http_request_duration.record(total_duration, labels)
 
         return {
             "order":     order_data,
@@ -269,6 +293,9 @@ async def get_order(order_id: str, request: Request):
         }
 
     finally:
+        # Registrar SLIs una sola vez por request (incluye 4xx/5xx y excepciones)
+        http_requests_total.add(1, status_labels)
+        http_request_duration.record(time.time() - start, labels)
         active_requests.add(-1, labels)
 
 

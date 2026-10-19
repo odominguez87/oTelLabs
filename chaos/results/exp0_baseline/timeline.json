@@ -1,0 +1,3 @@
+{"experimento": "exp0_baseline", "descripcion": "sin fallo (control / estado estable)", "rate_rps": 20,
+ "inicio": 1792339487, "inyeccion": 1792339532, "rollback": 1792339653, "fin": 1792339713,
+ "duracion_planeada_s": 120, "abortado": false}

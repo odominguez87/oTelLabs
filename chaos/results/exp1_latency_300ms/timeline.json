@@ -1,0 +1,3 @@
+{"experimento": "exp1_latency_300ms", "descripcion": "tc netem delay 300ms ±50ms en service-b durante 120s", "rate_rps": 20,
+ "inicio": 1792339744, "inyeccion": 1792339789, "rollback": 1792339920, "fin": 1792339940,
+ "duracion_planeada_s": 120, "abortado": false}

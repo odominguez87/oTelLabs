@@ -88,7 +88,8 @@ processors:
 
   # ── resourcedetection: detecta automáticamente atributos GCP/AWS ─────────
   resourcedetection:
-    detectors: [env, gcp, ecs, docker, system]
+    # Local: sin gcp/ecs (no aplica) ni docker (requiere montar docker.sock)
+    detectors: [env, system]
     timeout: 10s
     override: false
 
@@ -143,7 +144,7 @@ exporters:
     send_timestamps: true
     metric_expiration: 3m
     resource_to_telemetry_conversion:
-      enabled: false   # Convierte resource attrs en labels de Prometheus
+      enabled: true    # Convierte resource attrs en labels (service_name, usado por el dashboard)
 
   # ── OTLP hacia Prometheus remoto (GCP Managed Prometheus) ────────────────
   # prometheusremotewrite:
@@ -152,14 +153,15 @@ exporters:
   #     authenticator: googleauth
 
   # ── Cloud Logging (GCP) ───────────────────────────────────────────────────
-  googlecloud:
-    project: ${env:GCP_PROJECT_ID}
-    log:
-      default_log_name: "otel-lab"
-    metric:
-      prefix: "custom.googleapis.com/otel/"
-    trace:
-      endpoint: cloudtrace.googleapis.com
+  # Deshabilitado en entorno local: requiere credenciales GCP montadas en el Collector
+  # googlecloud:
+  #   project: ${env:GCP_PROJECT_ID}
+  #   log:
+  #     default_log_name: "otel-lab"
+  #   metric:
+  #     prefix: "custom.googleapis.com/otel/"
+  #   trace:
+  #     endpoint: cloudtrace.googleapis.com
 
   # ── CloudWatch (AWS) ──────────────────────────────────────────────────────
   # awscloudwatchlogs:
@@ -217,7 +219,7 @@ service:
         - resource
         - batch
       exporters:
-        - googlecloud       # Cloud Logging (GCP)
+        # - googlecloud     # Cloud Logging (GCP) — requiere credenciales
         # - awscloudwatchlogs # CloudWatch (AWS)
         - logging
 

@@ -1,0 +1,2 @@
+
+[resumen] reqs=4501 rps=20.0 err=0.00% p50=24ms p95=38ms p99=296ms max=1612ms

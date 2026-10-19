@@ -53,7 +53,8 @@ services:
     command: ["--config=/etc/otel/collector-config.yaml"]
     volumes:
       - ./otel-collector/collector-config.yaml:/etc/otel/collector-config.yaml:ro
-      - //c/Users/ingod/AppData/Roaming/gcloud/application_default_credentials.json:/etc/gcloud/adc.json:ro
+      # Credenciales GCP (solo si se exporta a Cloud Logging; ruta del PC Windows original)
+      # - //c/Users/ingod/AppData/Roaming/gcloud/application_default_credentials.json:/etc/gcloud/adc.json:ro
     ports:
       - "4317:4317"    # OTLP gRPC
       - "4318:4318"    # OTLP HTTP
@@ -62,8 +63,8 @@ services:
       - "13133:13133"  # Health check
       - "49410:55679"  # zPages (debug pipeline) -> http://localhost:49410
     environment:
-      GOOGLE_APPLICATION_CREDENTIALS: /etc/gcloud/adc.json
-      GCP_PROJECT_ID: cicdtraining-505323
+      # GOOGLE_APPLICATION_CREDENTIALS: /etc/gcloud/adc.json
+      # GCP_PROJECT_ID: cicdtraining-505323
       ENVIRONMENT: development
       CLOUD_REGION: us-central1
     networks:
@@ -178,7 +179,7 @@ services:
       otel-collector:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -206,7 +207,7 @@ services:
       otel-collector:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
       interval: 10s
       timeout: 5s
       retries: 5

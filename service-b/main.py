@@ -20,6 +20,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.view import View, ExplicitBucketHistogramAggregation
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -55,9 +56,17 @@ otlp_metric_reader = PeriodicExportingMetricReader(
     OTLPMetricExporter(endpoint=OTEL_ENDPOINT, insecure=True),
     export_interval_millis=15000,
 )
+# Buckets en segundos (los defaults del SDK asumen ms)
+latency_view = View(
+    instrument_name="*_duration_seconds",
+    aggregation=ExplicitBucketHistogramAggregation(
+        [0.025, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 2, 3, 5, 7.5, 10]
+    ),
+)
 meter_provider = MeterProvider(
     resource=resource,
-    metric_readers=[ otlp_metric_reader],
+    metric_readers=[otlp_metric_reader],
+    views=[latency_view],
 )
 metrics.set_meter_provider(meter_provider)
 meter = metrics.get_meter("service-b", APP_VERSION)
@@ -99,7 +108,7 @@ logger = logging.getLogger("service-b")
 # ── Auto-instrumentación ──────────────────────────────────────────────────────
 # FastAPIInstrumentor: extrae automáticamente el header traceparent
 # y continúa el trace iniciado por service-a — sin ninguna línea extra de código.
-FastAPIInstrumentor().instrument(tracer_provider=tracer_provider)
+# (FastAPI se instrumenta con instrument_app(app) después de crear la app)
 Psycopg2Instrumentor().instrument(tracer_provider=tracer_provider)
 
 # ── Cache en memoria (simulación) ─────────────────────────────────────────────
@@ -123,6 +132,7 @@ app = FastAPI(
     version=APP_VERSION,
     lifespan=lifespan,
 )
+FastAPIInstrumentor.instrument_app(app, tracer_provider=tracer_provider)
 
 
 @app.get("/health")
