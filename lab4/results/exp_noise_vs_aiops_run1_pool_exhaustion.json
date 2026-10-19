@@ -1,0 +1,123 @@
+{
+  "experimento": "Módulo B — ruido no correlacionado vs incidente real",
+  "ventana": {
+    "inicio": 1792370015.2028239,
+    "fin": 1792370797.0324988
+  },
+  "timeline": [
+    {
+      "evento": "ruido: ráfaga de errores rápidos 3 %",
+      "inicio": 1792370105.3136718,
+      "fin": 1792370145.4293592,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +350 ms",
+      "inicio": 1792370225.435128,
+      "fin": 1792370266.146382,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: ráfaga de errores rápidos 5 %",
+      "inicio": 1792370346.2368588,
+      "fin": 1792370386.3238778,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +400 ms",
+      "inicio": 1792370466.353769,
+      "fin": 1792370506.462146,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "incidente: errores 15 % + latencia (timeout BD)",
+      "inicio": 1792370586.599373,
+      "fin": 1792370706.9309282,
+      "tipo": "incidente"
+    }
+  ],
+  "resumen": {
+    "static": {
+      "notificaciones": 5,
+      "durante_ruido": 4,
+      "durante_incidente": 1,
+      "alertas": [
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T00:36:03.185219+00:00",
+          "evento": "ruido",
+          "trace_id": "544ecb0300f4f6f8745c27ac046f8daa"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T00:37:24.775736+00:00",
+          "evento": "ruido",
+          "trace_id": null
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T00:38:08.629602+00:00",
+          "evento": "ruido",
+          "trace_id": "55780739f50f551d9247b022b302ae58"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T00:41:28.193575+00:00",
+          "evento": "ruido",
+          "trace_id": "b6cfef5eadc80cb3bffeda085671948e"
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T00:43:58.229136+00:00",
+          "evento": "incidente",
+          "trace_id": "ccdb8b23e422210f2da60839a58852c3"
+        }
+      ]
+    },
+    "aiops": {
+      "notificaciones": 2,
+      "durante_ruido": 1,
+      "durante_incidente": 1,
+      "alertas": [
+        {
+          "alertname": "DataServiceAnomalyCorrelated",
+          "hora": "2026-10-19T00:38:28.965360+00:00",
+          "evento": "ruido",
+          "trace_id": "426a3051e83544112bda061c6bdaa22b"
+        },
+        {
+          "alertname": "DataServiceAnomalyCorrelated",
+          "hora": "2026-10-19T00:44:30.622307+00:00",
+          "evento": "incidente",
+          "trace_id": "f84b13ecdb1f8864197415c190cca1f5"
+        }
+      ]
+    }
+  },
+  "reduccion_ruido_pct": 60.0,
+  "incidente_detectado_por_aiops": true,
+  "mttd_aiops_s": 84.0,
+  "alerta_incidente": {
+    "received_at": "2026-10-19T00:44:30.622307+00:00",
+    "kind": "aiops",
+    "status": "firing",
+    "alertname": "DataServiceAnomalyCorrelated",
+    "severity": "page",
+    "service": "data-service",
+    "starts_at": "2026-10-19T00:44:23.156Z",
+    "summary": "Anomalía correlacionada en data-service: error rate sobre μ+2σ y p99 sobre el SLO",
+    "context": {
+      "error_ratio": "21.67%",
+      "latency_p99": "1.721s",
+      "upper_band": "14.36%"
+    },
+    "runbook": "https://github.com/odominguez87/oTelLabs/blob/main/docs/runbooks.md#data-service-anomaly",
+    "trace_id": "f84b13ecdb1f8864197415c190cca1f5",
+    "trace_service": "data-service",
+    "failed_span": "ingress",
+    "error_type": null,
+    "trace_url": "http://localhost:16686/trace/f84b13ecdb1f8864197415c190cca1f5",
+    "logs_url": "http://localhost:3000/explore?left=%7B%22datasource%22%3A%20%22loki%22%2C%20%22queries%22%3A%20%5B%7B%22refId%22%3A%20%22A%22%2C%20%22expr%22%3A%20%22%7Bservice_name%3D~%5C%22.%2B%5C%22%7D%20%7C%20trace_id%3D%5C%22f84b13ecdb1f8864197415c190cca1f5%5C%22%22%7D%5D%7D",
+    "received_ts": 1792370670.622307
+  }
+}

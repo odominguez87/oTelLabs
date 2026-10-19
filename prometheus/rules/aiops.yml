@@ -1,0 +1,77 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Módulo B — AIOps: detección de anomalías sobre data-service
+#
+# Dos estrategias evaluadas EN PARALELO sobre las mismas señales, para medir
+# cuántas alertas genera cada una (reducción de ruido):
+#   kind="static" → umbrales fijos independientes (enfoque tradicional)
+#   kind="aiops"  → baseline dinámico (μ + 2σ) Y correlación con el SLO de latencia
+#
+# Equivalente en nube: Cloud Monitoring (forecast/anomaly) · AWS DevOps Guru
+# (ver infra/terraform/*/aiops.tf)
+# ════════════════════════════════════════════════════════════════════════════
+groups:
+  - name: data-service-sli
+    interval: 5s
+    rules:
+      - record: data_service:requests:rate1m
+        expr: sum(rate(otelcol_data_service_requests_total{route="/product"}[1m]))
+
+      - record: data_service:error_ratio:rate1m
+        expr: |
+          sum(rate(otelcol_data_service_requests_total{route="/product", status_code=~"5.."}[1m]))
+            / clamp_min(sum(rate(otelcol_data_service_requests_total{route="/product"}[1m])), 1e-9)
+
+      - record: data_service:latency_p99:rate1m
+        expr: histogram_quantile(0.99, sum(rate(otelcol_data_service_request_duration_seconds_bucket{route="/product"}[1m])) by (le))
+
+      # Serie "limpia" para aprender el baseline: solo muestras en las que el SLO de
+      # latencia se cumplía. Sin esto, un incidente reciente (errores + latencia)
+      # infla μ y σ y la banda deja de detectar el siguiente (contaminación del
+      # baseline, observada en la corrida 2 del experimento de ruido).
+      - record: data_service:error_ratio:clean
+        expr: data_service:error_ratio:rate1m unless on() (data_service:latency_p99:rate1m > 0.3)
+
+      # Baseline dinámico: ventana de 15 min que termina 2 min atrás, para que la
+      # anomalía en curso no "contamine" su propio baseline.
+      - record: data_service:error_ratio:baseline_avg
+        expr: avg_over_time(data_service:error_ratio:clean[15m] offset 2m)
+
+      # σ con piso de 0,5 pp: con un baseline perfectamente plano (σ=0) cualquier
+      # error aislado superaría μ+2σ; el piso evita esa hipersensibilidad.
+      - record: data_service:error_ratio:baseline_stddev
+        expr: clamp_min(stddev_over_time(data_service:error_ratio:clean[15m] offset 2m), 0.005)
+
+      - record: data_service:error_ratio:upper_band
+        expr: data_service:error_ratio:baseline_avg + 2 * data_service:error_ratio:baseline_stddev
+
+  - name: data-service-alerts
+    interval: 5s
+    rules:
+      # ── Enfoque tradicional: umbrales estáticos independientes ─────────────
+      - alert: DataServiceHighErrorRateStatic
+        expr: data_service:error_ratio:rate1m > 0.01
+        labels: { severity: warning, kind: static, service: data-service }
+        annotations:
+          summary: "data-service error rate {{ $value | humanizePercentage }} > 1 % (umbral estático)"
+
+      - alert: DataServiceHighLatencyStatic
+        expr: data_service:latency_p99:rate1m > 0.3
+        labels: { severity: warning, kind: static, service: data-service }
+        annotations:
+          summary: "data-service p99 {{ $value | humanizeDuration }} > 300 ms (umbral estático)"
+
+      # ── AIOps: anomalía de errores CORRELACIONADA con violación del SLO ────
+      #   error_rate > baseline + 2σ   Y   latency_p99 > SLO (300 ms)
+      - alert: DataServiceAnomalyCorrelated
+        expr: |
+          (data_service:error_ratio:rate1m > data_service:error_ratio:upper_band)
+            and on()
+          (data_service:latency_p99:rate1m > 0.3)
+        for: 15s
+        labels: { severity: page, kind: aiops, service: data-service }
+        annotations:
+          summary: "Anomalía correlacionada en data-service: error rate sobre μ+2σ y p99 sobre el SLO"
+          error_ratio: "{{ with query \"data_service:error_ratio:rate1m\" }}{{ . | first | value | humanizePercentage }}{{ end }}"
+          upper_band: "{{ with query \"data_service:error_ratio:upper_band\" }}{{ . | first | value | humanizePercentage }}{{ end }}"
+          latency_p99: "{{ with query \"data_service:latency_p99:rate1m\" }}{{ . | first | value | humanizeDuration }}{{ end }}"
+          runbook: "https://github.com/odominguez87/oTelLabs/blob/main/docs/runbooks.md#data-service-anomaly"

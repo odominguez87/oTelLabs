@@ -1,0 +1,123 @@
+{
+  "experimento": "Módulo B — ruido no correlacionado vs incidente real",
+  "ventana": {
+    "inicio": 1792373437.140256,
+    "fin": 1792374217.4079528
+  },
+  "timeline": [
+    {
+      "evento": "ruido: ráfaga de errores rápidos 3 %",
+      "inicio": 1792373527.182132,
+      "fin": 1792373567.2208698,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +350 ms",
+      "inicio": 1792373647.230685,
+      "fin": 1792373687.260937,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: ráfaga de errores rápidos 5 %",
+      "inicio": 1792373767.276605,
+      "fin": 1792373807.312524,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +400 ms",
+      "inicio": 1792373887.322983,
+      "fin": 1792373927.3476758,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "incidente: errores 15 % + latencia (timeout BD)",
+      "inicio": 1792374007.3595269,
+      "fin": 1792374127.39562,
+      "tipo": "incidente"
+    }
+  ],
+  "resumen": {
+    "static": {
+      "notificaciones": 6,
+      "durante_ruido": 4,
+      "durante_incidente": 2,
+      "alertas": [
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T01:32:48.296257+00:00",
+          "evento": "ruido",
+          "trace_id": "d0e138fd45904603f3bcd1298f95bf69"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T01:34:23.283995+00:00",
+          "evento": "ruido",
+          "trace_id": "170a2c0757e375bbf10c240040ff2c4c"
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T01:36:33.280448+00:00",
+          "evento": "ruido",
+          "trace_id": "122291bd1d40cd7e035dffb34ef31fbb"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T01:38:28.283639+00:00",
+          "evento": "ruido",
+          "trace_id": "4ea7888bcea3035d5b06b3a287bc00c3"
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T01:40:28.295721+00:00",
+          "evento": "incidente",
+          "trace_id": "bca09724e5f72101949687d6d560bc5b"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T01:40:28.298725+00:00",
+          "evento": "incidente",
+          "trace_id": "bca09724e5f72101949687d6d560bc5b"
+        }
+      ]
+    },
+    "aiops": {
+      "notificaciones": 1,
+      "durante_ruido": 0,
+      "durante_incidente": 1,
+      "alertas": [
+        {
+          "alertname": "DataServiceAnomalyCorrelated",
+          "hora": "2026-10-19T01:40:58.283793+00:00",
+          "evento": "incidente",
+          "trace_id": "17a1f05a791a08270dcb055d96464550"
+        }
+      ]
+    }
+  },
+  "reduccion_ruido_pct": 83.3,
+  "incidente_detectado_por_aiops": true,
+  "mttd_aiops_s": 50.9,
+  "alerta_incidente": {
+    "received_at": "2026-10-19T01:40:58.283793+00:00",
+    "kind": "aiops",
+    "status": "firing",
+    "alertname": "DataServiceAnomalyCorrelated",
+    "severity": "page",
+    "service": "data-service",
+    "starts_at": "2026-10-19T01:40:48.156Z",
+    "summary": "Anomalía correlacionada en data-service: error rate sobre μ+2σ y p99 sobre el SLO",
+    "context": {
+      "error_ratio": "9.2%",
+      "latency_p99": "972.8ms",
+      "upper_band": "4.11%"
+    },
+    "runbook": "https://github.com/odominguez87/oTelLabs/blob/main/docs/runbooks.md#data-service-anomaly",
+    "trace_id": "17a1f05a791a08270dcb055d96464550",
+    "trace_service": "data-service",
+    "failed_span": "call.data-service.product",
+    "error_type": "Server error '503 Service Unavailable' for url 'http://envoy-data:10000/product/MONITOR-4K'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503",
+    "trace_url": "http://localhost:16686/trace/17a1f05a791a08270dcb055d96464550",
+    "logs_url": "http://localhost:3000/explore?left=%7B%22datasource%22%3A%20%22loki%22%2C%20%22queries%22%3A%20%5B%7B%22refId%22%3A%20%22A%22%2C%20%22expr%22%3A%20%22%7Bservice_name%3D~%5C%22.%2B%5C%22%7D%20%7C%20trace_id%3D%5C%2217a1f05a791a08270dcb055d96464550%5C%22%22%7D%5D%7D",
+    "received_ts": 1792374058.283793
+  }
+}

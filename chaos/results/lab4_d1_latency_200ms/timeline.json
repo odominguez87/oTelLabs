@@ -1,0 +1,3 @@
+{"experimento": "lab4_d1_latency_200ms", "descripcion": "tc netem delay 200ms ±0ms en service-b durante 180s (rollback graceful)", "rate_rps": 10,
+ "inicio": 1792374251, "inyeccion": 1792374281, "rollback": 1792374466, "fin": 1792374522,
+ "duracion_planeada_s": 180, "abortado": false}

@@ -34,6 +34,9 @@ from opentelemetry.propagate import inject
 # ── Configuración desde variables de entorno ─────────────────────────────────
 OTEL_ENDPOINT   = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317")
 SERVICE_B_URL   = os.getenv("SERVICE_B_URL", "http://service-b:8001")
+# data-service se consume a través de su sidecar Envoy (service mesh L7)
+DATA_SERVICE_URL = os.getenv("DATA_SERVICE_URL", "http://envoy-data:10000")
+DATA_SERVICE_KEY = os.getenv("DATA_SERVICE_API_KEY", "svc-a-key")
 DB_DSN          = os.getenv("DATABASE_URL", "postgresql://app:secret@postgres:5432/appdb")
 PROMETHEUS_PORT = int(os.getenv("PROMETHEUS_PORT", "9090"))
 ENV             = os.getenv("ENVIRONMENT", "production")
@@ -67,7 +70,7 @@ prometheus_reader = PrometheusMetricReader()
 # Reader 2: envía métricas al Collector cada 15 segundos (OTLP push)
 otlp_metric_reader = PeriodicExportingMetricReader(
     OTLPMetricExporter(endpoint=OTEL_ENDPOINT, insecure=True),
-    export_interval_millis=15000
+    export_interval_millis=int(os.getenv("OTEL_METRIC_EXPORT_INTERVAL", "15000")),
 )
 
 # Buckets en SEGUNDOS: los defaults del SDK (5, 10, 25 … 10000) asumen ms y
@@ -121,6 +124,10 @@ service_b_calls_total = meter.create_counter(
     "service_b_calls_total",
     description="Llamadas a service-b por resultado",
 )
+data_service_calls_total = meter.create_counter(
+    "data_service_calls_total",
+    description="Llamadas a data-service (vía mesh) por resultado",
+)
 
 # ── 5. Logging estructurado JSON con trace_id/span_id ────────────────────────
 # El trace_id en el log es el PUENTE que correlaciona log ↔ traza en Grafana.
@@ -155,12 +162,21 @@ def get_db_connection():
     return psycopg2.connect(DB_DSN)
 
 # ── FastAPI App ───────────────────────────────────────────────────────────────
+# Clientes HTTP compartidos con keep-alive (remediación P2 del Lab 3): crear un
+# httpx.AsyncClient cuesta ~28 ms de CPU; hacerlo por request saturaba service-a.
+http_clients: dict[str, httpx.AsyncClient] = {}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # No se necesita iniciar porque ya PrometheusmETRIC EN LINA 56 ya lo hizo en el serv
     # start_http_server(PROMETHEUS_PORT)
     logger.info("Prometheus metrics server started", extra={"port": PROMETHEUS_PORT})
+    http_clients["service-b"] = httpx.AsyncClient(timeout=5.0)
+    http_clients["data-service"] = httpx.AsyncClient(timeout=httpx.Timeout(1.5, connect=0.3))
     yield
+    for client in http_clients.values():
+        await client.aclose()
     # Shutdown: flushar todos los spans pendientes
     tracer_provider.shutdown()
     meter_provider.shutdown()
@@ -262,15 +278,14 @@ async def get_order(order_id: str, request: Request):
             try:
                 # HTTPXClientInstrumentor inyecta automáticamente el header
                 # traceparent: 00-{trace_id}-{span_id}-01 (W3C TraceContext)
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    headers = {}
-                    inject(headers)  # propagación explícita como fallback
-                    resp = await client.get(
-                        f"{SERVICE_B_URL}/inventory/{order_data['product']}",
-                        headers=headers,
-                    )
-                    resp.raise_for_status()
-                    inventory = resp.json()
+                headers = {}
+                inject(headers)  # propagación explícita como fallback
+                resp = await http_clients["service-b"].get(
+                    f"{SERVICE_B_URL}/inventory/{order_data['product']}",
+                    headers=headers,
+                )
+                resp.raise_for_status()
+                inventory = resp.json()
 
                 service_b_calls_total.add(1, {"status": "success"})
                 sb_span.set_attribute("http.status_code", resp.status_code)
@@ -286,9 +301,31 @@ async def get_order(order_id: str, request: Request):
                 logger.error("service-b call failed", extra={"error": str(e)})
                 inventory = {"available": -1, "error": "service-b unavailable"}
 
+        # ── Llamada a data-service vía mesh (Envoy) ──────────────────────────
+        # Captura TODO error de transporte y degrada con gracia (remediación P1 del Lab 3)
+        with tracer.start_as_current_span(
+            "call.data-service.product",
+            kind=trace.SpanKind.CLIENT,
+            attributes={"peer.service": "data-service", "order.product": order_data["product"]},
+        ) as ds_span:
+            try:
+                resp = await http_clients["data-service"].get(
+                    f"{DATA_SERVICE_URL}/product/{order_data['product']}",
+                    headers={"x-api-key": DATA_SERVICE_KEY})
+                resp.raise_for_status()
+                product_data = resp.json()
+                data_service_calls_total.add(1, {"status": "success"})
+            except (httpx.HTTPError, ValueError) as e:
+                data_service_calls_total.add(1, {"status": "error"})
+                ds_span.record_exception(e)
+                ds_span.set_status(trace.StatusCode.ERROR, str(e))
+                logger.error("data-service call failed", extra={"error": type(e).__name__})
+                product_data = {"price": None, "degraded": True}
+
         return {
             "order":     order_data,
             "inventory": inventory,
+            "product":   product_data,
             "trace_id":  format(trace.get_current_span().get_span_context().trace_id, "032x"),
         }
 

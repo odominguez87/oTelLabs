@@ -1,0 +1,59 @@
+# ════════════════════════════════════════════════════════════════════════════
+# SLO (Módulo D) y seguridad / red (Módulo C)
+# ════════════════════════════════════════════════════════════════════════════
+groups:
+  - name: slo-alerts
+    interval: 5s
+    rules:
+      # SLO de latencia de la ruta crítica: p95 de service-a < 500 ms
+      - record: service_a:latency_p95:rate1m
+        expr: histogram_quantile(0.95, sum(rate(otelcol_http_request_duration_seconds_bucket{service_name="service-a"}[1m])) by (le))
+
+      - alert: ServiceALatencySLOBreach
+        expr: service_a:latency_p95:rate1m > 0.5
+        for: 30s
+        labels: { severity: page, kind: slo, service: service-a }
+        annotations:
+          summary: "p95 de service-a {{ $value | humanizeDuration }} > SLO de 500 ms"
+          runbook: "https://github.com/odominguez87/oTelLabs/blob/main/docs/runbooks.md#service-a-latency"
+
+      # Burn rate del error budget de data-service (SLO 99,5 % → budget 0,5 %)
+      - record: data_service:burn_rate:1m
+        expr: data_service:error_ratio:rate1m / 0.005
+
+  - name: security-network
+    interval: 5s
+    rules:
+      - record: security:auth_failures:rate1m
+        expr: sum(rate(otelcol_data_service_auth_failures_total[1m])) * 60
+
+      # Tráfico Este-Oeste observado por el mesh (Envoy) y Norte-Sur (entrada a service-a)
+      - record: network:east_west_rps
+        expr: sum(rate(envoy_cluster_upstream_rq_total{envoy_cluster_name="data_service"}[1m]))
+      - record: network:north_south_rps
+        expr: sum(rate(otelcol_http_requests_total{service_name="service-a"}[1m]))
+
+      - alert: AuthFailuresSpike
+        expr: security:auth_failures:rate1m > 10
+        for: 15s
+        labels: { severity: warning, kind: security, service: data-service }
+        annotations:
+          summary: "{{ $value | printf \"%.0f\" }} intentos de autenticación fallidos/min en data-service (posible fuerza bruta)"
+
+      # Zero-trust: todo el tráfico hacia data-service debe pasar por su sidecar
+      - alert: UnmeshedEastWestTraffic
+        expr: sum(rate(otelcol_data_service_requests_total{via_mesh="false", route="/product"}[1m])) > 0
+        for: 15s
+        labels: { severity: critical, kind: security, service: data-service }
+        annotations:
+          summary: "data-service recibe tráfico que NO pasa por el service mesh (bypass del sidecar)"
+
+      # Tráfico E-W anómalo: volumen > μ + 3σ de los últimos 15 min
+      - alert: EastWestTrafficAnomaly
+        expr: |
+          network:east_west_rps
+            > (avg_over_time(network:east_west_rps[15m] offset 2m) + 3 * clamp_min(stddev_over_time(network:east_west_rps[15m] offset 2m), 1))
+        for: 30s
+        labels: { severity: warning, kind: security, service: data-service }
+        annotations:
+          summary: "Volumen Este-Oeste hacia data-service anómalo: {{ $value | printf \"%.1f\" }} rps"

@@ -1,0 +1,16 @@
+[20:44:08] D1: +200 ms de latencia en service-b (tc netem) durante 180 s
+[20:44:11] Estado estable OK (200: 20/20, p95=0.033378s).
+[20:44:11] k6: 10 rps constantes durante 270s (PRE 30s · INYECCIÓN 180s · POST 60s)
+[20:44:41] >>> INYECCIÓN: tc netem delay 200ms ±0ms en service-b durante 180s (rollback graceful)
+    tc: qdisc netem 8006: root refcnt 9 limit 1000 delay 200ms seed 7098802157598355384
+[20:47:41] ROLLBACK: revirtiendo el fallo inyectado…
+    tc (post-rollback): qdisc noqueue 0: root refcnt 2 
+[20:47:46] ROLLBACK completado.
+[20:47:46] Observando recuperación (60s)…
+
+[resumen] reqs=2701 rps=10.0 err=0.11% p50=216ms p95=285ms p99=2003ms max=2986ms
+[20:49:02] Recolectando evidencias (Prometheus, Jaeger, logs)…
+[evidencia] trazas=670 con_error=9 excepciones={'httpx.RemoteProtocolError': 12, 'httpx.ConnectTimeout': 2, 'httpx.HTTPStatusError': 4} call.service-b p95=943.993ms
+[evidencia] logs={'INFO | Order fetched from DB': 5631, 'INFO | HTTP Request: GET http://service-b:8001/inventory/KEYBOARD-MK "HTTP/1.1 200 OK"': 1095, 'INFO | Inventory fetched from service-b': 5627, 'INFO | HTTP Request: GET http://envoy-data:10000/product/KEYBOARD-MK "HTTP/1.1 200 OK"': 1094, 'INFO | HTTP Request: GET http://service-b:8001/inventory/MOUSE-PRO "HTTP/1.1 200 OK"': 1162, 'INFO | HTTP Request: GET http://envoy-data:10000/product/MOUSE-PRO "HTTP/1.1 200 OK"': 1161, 'INFO | HTTP Request: GET http://service-b:8001/inventory/LAPTOP-X1 "HTTP/1.1 200 OK"': 1098, 'INFO | HTTP Request: GET http://envoy-data:10000/product/LAPTOP-X1 "HTTP/1.1 200 OK"': 1097, 'INFO | HTTP Request: GET http://service-b:8001/inventory/MONITOR-4K "HTTP/1.1 200 OK"': 1179, 'INFO | HTTP Request: GET http://envoy-data:10000/product/MONITOR-4K "HTTP/1.1 200 OK"': 1179, 'INFO | HTTP Request: GET http://service-b:8001/inventory/HEADSET-Z "HTTP/1.1 200 OK"': 1093, 'INFO | HTTP Request: GET http://envoy-data:10000/product/HEADSET-Z "HTTP/1.1 200 OK"': 1091, 'INFO | HTTP Request: GET http://envoy-data:10000/product/MOUSE-PRO "HTTP/1.1 504 Gateway Timeout"': 1, 'ERROR | data-service call failed': 5, 'INFO | HTTP Request: GET http://envoy-data:10000/product/KEYBOARD-MK "HTTP/1.1 504 Gateway Timeout"': 1, 'INFO | HTTP Request: GET http://envoy-data:10000/product/LAPTOP-X1 "HTTP/1.1 504 Gateway Timeout"': 1, 'INFO | HTTP Request: GET http://envoy-data:10000/product/HEADSET-Z "HTTP/1.1 504 Gateway Timeout"': 1}
+[20:49:08] Resultados en /Users/macbook/oTelLabs/chaos/results/lab4_d1_latency_200ms
+[20:49:08] Resultados → /Users/macbook/oTelLabs/lab4/results/exp_d1_latency_service_b.json

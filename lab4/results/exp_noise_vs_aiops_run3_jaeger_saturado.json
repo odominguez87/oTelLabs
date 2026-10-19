@@ -1,0 +1,135 @@
+{
+  "experimento": "Módulo B — ruido no correlacionado vs incidente real",
+  "ventana": {
+    "inicio": 1792371940.978615,
+    "fin": 1792372728.068258
+  },
+  "timeline": [
+    {
+      "evento": "ruido: ráfaga de errores rápidos 3 %",
+      "inicio": 1792372031.075935,
+      "fin": 1792372071.0985332,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +350 ms",
+      "inicio": 1792372151.10223,
+      "fin": 1792372191.1306188,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: ráfaga de errores rápidos 5 %",
+      "inicio": 1792372271.97288,
+      "fin": 1792372317.741772,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +400 ms",
+      "inicio": 1792372397.938924,
+      "fin": 1792372438.009473,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "incidente: errores 15 % + latencia (timeout BD)",
+      "inicio": 1792372518.012388,
+      "fin": 1792372638.033823,
+      "tipo": "incidente"
+    }
+  ],
+  "resumen": {
+    "static": {
+      "notificaciones": 6,
+      "durante_ruido": 4,
+      "durante_incidente": 2,
+      "alertas": [
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T01:07:48.185177+00:00",
+          "evento": "ruido",
+          "trace_id": "94d0fdcdf5a0b8fdc5fd33cb253ea53a"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T01:09:28.186136+00:00",
+          "evento": "ruido",
+          "trace_id": "94d0fdcdf5a0b8fdc5fd33cb253ea53a"
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T01:10:53.559765+00:00",
+          "evento": "ruido",
+          "trace_id": "c06996df7a068ec1e07393791808f74e"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T01:13:58.503685+00:00",
+          "evento": "ruido",
+          "trace_id": "ba73cc3aa150fa224ec103e9b69a7996"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T01:15:43.205146+00:00",
+          "evento": "incidente",
+          "trace_id": "2daecd74563baeb73bb1351dfef515f7"
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T01:15:43.218917+00:00",
+          "evento": "incidente",
+          "trace_id": "2daecd74563baeb73bb1351dfef515f7"
+        }
+      ]
+    },
+    "aiops": {
+      "notificaciones": 3,
+      "durante_ruido": 2,
+      "durante_incidente": 1,
+      "alertas": [
+        {
+          "alertname": "DataServiceAnomalyCorrelated",
+          "hora": "2026-10-19T01:11:03.621821+00:00",
+          "evento": "ruido",
+          "trace_id": null
+        },
+        {
+          "alertname": "DataServiceAnomalyCorrelated",
+          "hora": "2026-10-19T01:12:33.266816+00:00",
+          "evento": "ruido",
+          "trace_id": "ba73cc3aa150fa224ec103e9b69a7996"
+        },
+        {
+          "alertname": "DataServiceAnomalyCorrelated",
+          "hora": "2026-10-19T01:15:58.187822+00:00",
+          "evento": "incidente",
+          "trace_id": "59ef2db2983257ace94d7a012f54ef1e"
+        }
+      ]
+    }
+  },
+  "reduccion_ruido_pct": 50.0,
+  "incidente_detectado_por_aiops": true,
+  "mttd_aiops_s": 40.2,
+  "alerta_incidente": {
+    "received_at": "2026-10-19T01:15:58.187822+00:00",
+    "kind": "aiops",
+    "status": "firing",
+    "alertname": "DataServiceAnomalyCorrelated",
+    "severity": "page",
+    "service": "data-service",
+    "starts_at": "2026-10-19T01:15:53.156Z",
+    "summary": "Anomalía correlacionada en data-service: error rate sobre μ+2σ y p99 sobre el SLO",
+    "context": {
+      "error_ratio": "7.761%",
+      "latency_p99": "967.8ms",
+      "upper_band": "1.226%"
+    },
+    "runbook": "https://github.com/odominguez87/oTelLabs/blob/main/docs/runbooks.md#data-service-anomaly",
+    "trace_id": "59ef2db2983257ace94d7a012f54ef1e",
+    "trace_service": "data-service",
+    "failed_span": "GET /product/{product_id}",
+    "error_type": "chaos.injected_fault",
+    "trace_url": "http://localhost:16686/trace/59ef2db2983257ace94d7a012f54ef1e",
+    "logs_url": "http://localhost:3000/explore?left=%7B%22datasource%22%3A%20%22loki%22%2C%20%22queries%22%3A%20%5B%7B%22refId%22%3A%20%22A%22%2C%20%22expr%22%3A%20%22%7Bservice_name%3D~%5C%22.%2B%5C%22%7D%20%7C%20trace_id%3D%5C%2259ef2db2983257ace94d7a012f54ef1e%5C%22%22%7D%5D%7D",
+    "received_ts": 1792372558.187822
+  }
+}

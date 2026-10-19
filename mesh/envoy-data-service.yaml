@@ -1,0 +1,102 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Sidecar Envoy de data-service — service mesh L7 (equivalente local de
+# Cloud Service Mesh / AWS App Mesh, ambos basados en Envoy)
+#
+#   service-a ──HTTP──▶ envoy-data:10000 ──▶ data-service:8002
+#
+# Observabilidad L7 que aporta el mesh sin tocar el código de la app:
+#   • Métricas por código de respuesta, latencia, reintentos y timeouts
+#     → http://envoy-data:9901/stats/prometheus (scrapeado por Prometheus)
+#   • Spans propios (OpenTelemetry tracer) que continúan el traceparent W3C
+#   • Access log JSON en stdout (método, ruta, código, duración, trace)
+#   • Política de resiliencia: timeout 1 s y 1 reintento en 5xx de conexión
+# ════════════════════════════════════════════════════════════════════════════
+admin:
+  address:
+    socket_address: { address: 0.0.0.0, port_value: 9901 }
+
+static_resources:
+  listeners:
+    - name: data_service_inbound
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 10000 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: data_service_ingress
+                generate_request_id: true
+                tracing:
+                  provider:
+                    name: envoy.tracers.opentelemetry
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.config.trace.v3.OpenTelemetryConfig
+                      service_name: envoy-mesh-data-service
+                      grpc_service:
+                        envoy_grpc: { cluster_name: otel_collector }
+                        timeout: 1s
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        json_format:
+                          ts: "%START_TIME%"
+                          mesh: "envoy-sidecar"
+                          method: "%REQ(:METHOD)%"
+                          path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+                          status: "%RESPONSE_CODE%"
+                          flags: "%RESPONSE_FLAGS%"
+                          duration_ms: "%DURATION%"
+                          upstream_ms: "%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%"
+                          downstream: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+                          upstream: "%UPSTREAM_HOST%"
+                          traceparent: "%REQ(TRACEPARENT)%"
+                route_config:
+                  name: data_service_route
+                  virtual_hosts:
+                    - name: data_service
+                      domains: ["*"]
+                      request_headers_to_add:
+                        - header: { key: x-mesh-sidecar, value: envoy }
+                          append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                      routes:
+                        - match: { prefix: "/" }
+                          route:
+                            cluster: data_service
+                            timeout: 1s
+                            retry_policy:
+                              retry_on: connect-failure,reset
+                              num_retries: 1
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: data_service
+      type: STRICT_DNS
+      connect_timeout: 0.5s
+      load_assignment:
+        cluster_name: data_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: data-service, port_value: 8002 }
+    - name: otel_collector
+      type: STRICT_DNS
+      connect_timeout: 1s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: otel_collector
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: otel-collector, port_value: 4317 }

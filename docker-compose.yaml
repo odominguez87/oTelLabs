@@ -23,6 +23,9 @@ volumes:
   prometheus-data:
   grafana-data:
   jaeger-data:
+  cloudsql-data:
+  rds-data:
+  alerts-data:
 
 services:
   # ── Base de datos compartida ─────────────────────────────────────────────
@@ -90,6 +93,7 @@ services:
       BADGER_EPHEMERAL: "false"
       BADGER_DIRECTORY_VALUE: /badger/data
       BADGER_DIRECTORY_KEY: /badger/key
+      BADGER_SPAN_STORE_TTL: 12h        # acota el almacenamiento (Lab 4)
     volumes:
       - jaeger-data:/badger
     ports:
@@ -114,6 +118,7 @@ services:
       - "--web.enable-remote-write-receiver"
     volumes:
       - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
     ports:
       - "9091:9090"   # Prometheus UI (9091 para no colisionar con apps)
@@ -130,6 +135,12 @@ services:
       GF_SECURITY_ADMIN_USER:     admin
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_FEATURE_TOGGLES_ENABLE: traceqlEditor traceToMetrics
+      # Exportar paneles como PNG (evidencias del informe)
+      GF_RENDERING_SERVER_URL:      http://grafana-renderer:8081/render
+      GF_RENDERING_CALLBACK_URL:    http://grafana:3000/
+      # Solo laboratorio local: lectura anónima para renderizar paneles (no usar en producción)
+      GF_AUTH_ANONYMOUS_ENABLED:    "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE:   Viewer
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -166,6 +177,9 @@ services:
       SERVICE_B_URL:                http://service-b:8001
       DATABASE_URL:                 postgresql://app:secret@postgres:5432/appdb
       PROMETHEUS_PORT:              "9064"
+      DATA_SERVICE_URL:             http://envoy-data:10000   # vía sidecar del mesh
+      DATA_SERVICE_API_KEY:         svc-a-key
+      OTEL_METRIC_EXPORT_INTERVAL:  "5000"
       ENVIRONMENT:                  development
       CLOUD_PROVIDER:               local
     ports:
@@ -211,3 +225,124 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ════════════════════════════════════════════════════════════════════════
+  # Lab 4 — Arquitectura observable completa
+  # ════════════════════════════════════════════════════════════════════════
+
+  # ── Bases de datos administradas (simuladas en local) ───────────────────
+  # GCP Cloud SQL for PostgreSQL → infra/terraform/gcp/cloudsql.tf
+  cloudsql-pg:
+    image: postgres:16-alpine
+    container_name: cloudsql-pg
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: secret, POSTGRES_DB: catalog }
+    volumes:
+      - cloudsql-data:/var/lib/postgresql/data
+      - ./scripts/init-cloudsql.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [otel-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # AWS RDS for PostgreSQL → infra/terraform/aws/rds.tf
+  rds-pg:
+    image: postgres:16-alpine
+    container_name: rds-pg
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: secret, POSTGRES_DB: reviews }
+    volumes:
+      - rds-data:/var/lib/postgresql/data
+      - ./scripts/init-rds.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks: [otel-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d reviews"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── data-service (3er microservicio) ────────────────────────────────────
+  data-service:
+    build: { context: ./data-service }
+    container_name: data-service
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_METRIC_EXPORT_INTERVAL: "5000"
+      CLOUDSQL_DSN: postgresql://app:secret@cloudsql-pg:5432/catalog
+      RDS_DSN:      postgresql://app:secret@rds-pg:5432/reviews
+      DATA_SERVICE_API_KEYS: svc-a-key
+      DATA_SERVICE_ADMIN_KEY: chaos-admin-key
+      ENVIRONMENT: development
+    ports:
+      - "8002:8002"   # expuesto SOLO para demostrar la alerta de bypass del mesh
+    networks: [otel-net]
+    depends_on:
+      cloudsql-pg: { condition: service_healthy }
+      rds-pg:      { condition: service_healthy }
+      otel-collector: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8002/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Service mesh: sidecar Envoy de data-service (observabilidad L7) ─────
+  # Cloud Service Mesh / AWS App Mesh → infra/terraform/{gcp,aws}/mesh.tf
+  envoy-data:
+    image: envoyproxy/envoy:v1.31.2
+    container_name: envoy-data
+    command: ["envoy", "-c", "/etc/envoy/envoy.yaml", "--service-cluster", "data-service", "--log-level", "warn"]
+    volumes:
+      - ./mesh/envoy-data-service.yaml:/etc/envoy/envoy.yaml:ro
+    ports:
+      - "10000:10000"
+      - "9901:9901"   # admin / métricas L7
+    networks: [otel-net]
+    depends_on: [data-service]
+
+  # ── Pilar de logs: Loki ─────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports: ["3100:3100"]
+    networks: [otel-net]
+
+  # ── AIOps: Alertmanager + enriquecimiento con trace_id ──────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./alerting/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports: ["9093:9093"]
+    networks: [otel-net]
+
+  alert-enricher:
+    image: python:3.12.7-slim
+    container_name: alert-enricher
+    command: ["python", "-u", "/tools/alert_enricher.py"]
+    environment:
+      JAEGER_URL: http://jaeger:16686
+      ALERT_STORE: /data/alerts.jsonl
+    volumes:
+      - ./tools:/tools:ro
+      - alerts-data:/data
+    ports: ["8080:8080"]
+    networks: [otel-net]
+
+  # ── Seguridad: CVEs activos (reportes de Trivy) ─────────────────────────
+  cve-exporter:
+    image: python:3.12.7-slim
+    container_name: cve-exporter
+    command: ["python", "-u", "/tools/cve_exporter.py"]
+    volumes:
+      - ./tools:/tools:ro
+      - ./security/reports:/reports:ro
+    networks: [otel-net]
+
+  # ── Renderizado de paneles de Grafana a PNG ─────────────────────────────
+  grafana-renderer:
+    image: grafana/grafana-image-renderer:3.11.6
+    container_name: grafana-renderer
+    networks: [otel-net]

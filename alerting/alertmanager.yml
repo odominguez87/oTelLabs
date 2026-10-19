@@ -1,0 +1,29 @@
+# Alertmanager — enruta cada tipo de alerta al alert-enricher, que la
+# enriquece con el trace_id del request fallido (Módulo B).
+route:
+  receiver: enricher-default
+  group_by: [alertname]
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 4h
+  routes:
+    - matchers: [kind="static"]
+      receiver: enricher-static
+    - matchers: [kind="aiops"]
+      receiver: enricher-aiops
+    - matchers: [kind="slo"]
+      receiver: enricher-slo
+    - matchers: [kind="security"]
+      receiver: enricher-security
+
+receivers:
+  - name: enricher-default
+    webhook_configs: [{ url: http://alert-enricher:8080/alert/default, send_resolved: true }]
+  - name: enricher-static
+    webhook_configs: [{ url: http://alert-enricher:8080/alert/static, send_resolved: true }]
+  - name: enricher-aiops
+    webhook_configs: [{ url: http://alert-enricher:8080/alert/aiops, send_resolved: true }]
+  - name: enricher-slo
+    webhook_configs: [{ url: http://alert-enricher:8080/alert/slo, send_resolved: true }]
+  - name: enricher-security
+    webhook_configs: [{ url: http://alert-enricher:8080/alert/security, send_resolved: true }]

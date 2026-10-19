@@ -1,0 +1,13 @@
+[19:33:35] Control 90 s sin fallos…
+[19:35:05] >>> ruido: ráfaga de errores rápidos 3 % (40 s)
+[19:35:45]     pausa 80 s
+[19:37:05] >>> ruido: pico de latencia +350 ms (40 s)
+[19:37:46]     pausa 80 s
+[19:39:06] >>> ruido: ráfaga de errores rápidos 5 % (40 s)
+[19:39:46]     pausa 80 s
+[19:41:06] >>> ruido: pico de latencia +400 ms (40 s)
+[19:41:46]     pausa 80 s
+[19:43:06] >>> INCIDENTE REAL: 15 % de errores que tardan 900 ms (timeout de BD) durante 120 s
+[19:45:06] Recuperación 90 s…
+[19:46:40] Resultados → /Users/macbook/oTelLabs/lab4/results/exp_noise_vs_aiops.json
+[19:46:40] Estáticas: 5 notificaciones · AIOps: 2 · incidente detectado: True

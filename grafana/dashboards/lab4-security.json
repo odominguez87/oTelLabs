@@ -1,0 +1,542 @@
+{
+ "uid": "lab4-security",
+ "title": "Lab 4 — Golden Signals de Seguridad",
+ "description": "Módulo C: autenticación fallida, tráfico N-S/E-W y CVEs activos",
+ "tags": [
+  "lab4"
+ ],
+ "timezone": "browser",
+ "schemaVersion": 39,
+ "refresh": "10s",
+ "time": {
+  "from": "now-30m",
+  "to": "now"
+ },
+ "panels": [
+  {
+   "id": 1,
+   "type": "stat",
+   "title": "Auth fallidas / min (máx. en la ventana)",
+   "description": "Intentos de autenticación fallidos en data-service (API key ausente o inválida)",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "max"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "security:auth_failures:rate1m",
+     "legendFormat": ""
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "type": "stat",
+   "title": "Tráfico fuera del mesh (rps, máx.)",
+   "description": "Requests que llegan a data-service sin pasar por su sidecar Envoy (bypass)",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 6,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 0.0001
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "max"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(rate(otelcol_data_service_requests_total{via_mesh=\"false\"}[1m])) or vector(0)",
+     "legendFormat": ""
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "type": "stat",
+   "title": "CVEs CRITICAL activos",
+   "description": "Trivy, todas las imágenes",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "max"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum(cve_active{severity=\"CRITICAL\"})",
+     "legendFormat": ""
+    }
+   ]
+  },
+  {
+   "id": 4,
+   "type": "stat",
+   "title": "Alertas de seguridad (máx. simultáneas)",
+   "description": "",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 18,
+    "y": 0,
+    "w": 6,
+    "h": 5
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "max"
+     ]
+    },
+    "colorMode": "background",
+    "graphMode": "area",
+    "textMode": "value"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "count(ALERTS{kind=\"security\",alertstate=\"firing\"}) or vector(0)",
+     "legendFormat": ""
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "type": "timeseries",
+   "title": "Intentos de autenticación fallidos por motivo (por minuto)",
+   "description": "",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 0,
+    "y": 5,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (reason)(rate(otelcol_data_service_auth_failures_total[1m])) * 60",
+     "legendFormat": "{{reason}}"
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "type": "timeseries",
+   "title": "Tráfico Norte-Sur vs Este-Oeste (rps)",
+   "description": "N-S desde las métricas de service-a; E-W desde el sidecar Envoy (L7)",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 12,
+    "y": 5,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "stacking": {
+       "mode": "none"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "network:north_south_rps",
+     "legendFormat": "N-S: clientes → service-a"
+    },
+    {
+     "refId": "B",
+     "expr": "network:east_west_rps",
+     "legendFormat": "E-W: service-a → data-service (mesh)"
+    },
+    {
+     "refId": "C",
+     "expr": "sum(rate(otelcol_data_service_requests_total{via_mesh=\"false\"}[1m]))",
+     "legendFormat": "E-W fuera del mesh"
+    }
+   ]
+  },
+  {
+   "id": 7,
+   "type": "timeseries",
+   "title": "E-W por código de respuesta (Envoy L7)",
+   "description": "",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 10,
+      "stacking": {
+       "mode": "normal"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (envoy_response_code)(rate(envoy_cluster_upstream_rq{envoy_cluster_name=\"data_service\"}[1m]))",
+     "legendFormat": "HTTP {{envoy_response_code}}"
+    }
+   ]
+  },
+  {
+   "id": 8,
+   "type": "bargauge",
+   "title": "CVEs activos por severidad (todas las imágenes)",
+   "description": "",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 12,
+    "y": 13,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "showUnfilled": true,
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (severity)(cve_active{severity=~\"CRITICAL|HIGH|MEDIUM|LOW\"})",
+     "legendFormat": "{{severity}}",
+     "instant": true
+    }
+   ]
+  },
+  {
+   "id": 9,
+   "type": "bargauge",
+   "title": "CVEs CRITICAL + HIGH por imagen",
+   "description": "",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "showUnfilled": true,
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (image)(cve_active{severity=~\"CRITICAL|HIGH\"})",
+     "legendFormat": "{{image}}",
+     "instant": true
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "type": "bargauge",
+   "title": "CVEs con versión corregida disponible (accionables)",
+   "description": "",
+   "datasource": "Prometheus",
+   "gridPos": {
+    "x": 12,
+    "y": 21,
+    "w": 12,
+    "h": 8
+   },
+   "fieldConfig": {
+    "defaults": {
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 1
+       },
+       {
+        "color": "red",
+        "value": 10
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "orientation": "horizontal",
+    "displayMode": "gradient",
+    "showUnfilled": true,
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "sum by (image)(cve_fixable{severity=~\"CRITICAL|HIGH\"})",
+     "legendFormat": "{{image}}",
+     "instant": true
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "type": "logs",
+   "title": "Logs de seguridad de data-service (Loki · OTLP, con trace_id)",
+   "description": "",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 29,
+    "w": 24,
+    "h": 9
+   },
+   "options": {
+    "showTime": true,
+    "wrapLogMessage": true,
+    "enableLogDetails": true,
+    "sortOrder": "Descending",
+    "showLabels": false,
+    "dedupStrategy": "none"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "expr": "{service_name=\"data-service\"} |~ \"Autenticación fallida|fuera del service mesh\" | line_format \"{{.severity_text}} trace_id={{.trace_id}} {{__line__}}\"",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+## terraform validate — infra/terraform/gcp
+Success! The configuration is valid.
+
+recursos declarados: 26
+## terraform validate — infra/terraform/aws
+Success! The configuration is valid.
+
+recursos declarados: 39

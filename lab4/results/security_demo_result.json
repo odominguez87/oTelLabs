@@ -1,0 +1,20 @@
+{
+  "inicio": 1792374920,
+  "fin_fuerza_bruta": 1792375010,
+  "fin_bypass": 1792375070,
+  "fin": 1792375115,
+  "alertas": [
+    {
+      "alertname": "AuthFailuresSpike",
+      "segundos": 33,
+      "trace_id": "13787d16cb3a6f4b04dd867e3e1a6ab5",
+      "summary": "141 intentos de autenticación fallidos/min en data-service (posible fuerza bruta)"
+    },
+    {
+      "alertname": "UnmeshedEastWestTraffic",
+      "segundos": 123,
+      "trace_id": "13787d16cb3a6f4b04dd867e3e1a6ab5",
+      "summary": "data-service recibe tráfico que NO pasa por el service mesh (bypass del sidecar)"
+    }
+  ]
+}

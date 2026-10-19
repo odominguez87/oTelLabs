@@ -1,0 +1,54 @@
+{
+  "experimento": "Módulo D2 — 10 % de errores en data-service",
+  "inyeccion": 1792374660.919355,
+  "rollback": 1792374841.405857,
+  "alerta": {
+    "received_at": "2026-10-19T01:51:43.293000+00:00",
+    "kind": "aiops",
+    "status": "firing",
+    "alertname": "DataServiceAnomalyCorrelated",
+    "severity": "page",
+    "service": "data-service",
+    "starts_at": "2026-10-19T01:51:38.156Z",
+    "summary": "Anomalía correlacionada en data-service: error rate sobre μ+2σ y p99 sobre el SLO",
+    "context": {
+      "error_ratio": "5.19%",
+      "latency_p99": "951.8ms",
+      "upper_band": "2.786%"
+    },
+    "runbook": "https://github.com/odominguez87/oTelLabs/blob/main/docs/runbooks.md#data-service-anomaly",
+    "trace_id": "e1a0c0b834c885efcdeff024044ba175",
+    "trace_service": "data-service",
+    "failed_span": "call.data-service.product",
+    "error_type": "Server error '503 Service Unavailable' for url 'http://envoy-data:10000/product/MOUSE-PRO'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503",
+    "trace_url": "http://localhost:16686/trace/e1a0c0b834c885efcdeff024044ba175",
+    "logs_url": "http://localhost:3000/explore?left=%7B%22datasource%22%3A%20%22loki%22%2C%20%22queries%22%3A%20%5B%7B%22refId%22%3A%20%22A%22%2C%20%22expr%22%3A%20%22%7Bservice_name%3D~%5C%22.%2B%5C%22%7D%20%7C%20trace_id%3D%5C%22e1a0c0b834c885efcdeff024044ba175%5C%22%22%7D%5D%7D",
+    "received_ts": 1792374703.293
+  },
+  "mttd_s": 42.4,
+  "mttd_objetivo_s": 120,
+  "cumple_mttd": true,
+  "mttd_reglas_estaticas_s": {
+    "DataServiceHighErrorRateStatic": 22.4,
+    "DataServiceHighLatencyStatic": 22.4
+  },
+  "error_rate_max": 0.124,
+  "burn_rate_max": 24.8,
+  "budget_data_service": {
+    "requests": 1797,
+    "malos": 187,
+    "disponibilidad_ventana": 0.896,
+    "slo_degradado_en_ventana": true,
+    "budget_28d_requests": 120424,
+    "budget_consumido_pct": 0.155
+  },
+  "budget_service_a_usuario_final": {
+    "requests": 1792,
+    "malos": 0,
+    "disponibilidad_ventana": 1.0,
+    "slo_degradado_en_ventana": false,
+    "budget_28d_requests": 120122,
+    "budget_consumido_pct": 0.0
+  },
+  "alerta_accionable": true
+}

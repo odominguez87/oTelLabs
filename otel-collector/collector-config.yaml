@@ -110,7 +110,25 @@ processors:
         key: service.namespace
         value: "observability-lab"
 
-  # ── tail_sampling: muestrea trazas por política (reducir costos) ───────────
+  # ── tail_sampling ACTIVO (Lab 4): con 100 % de trazas, el almacenamiento Badger
+  # de Jaeger llegó a 850 % de CPU / 2,3 GB compactando y degradó todo el sistema.
+  # Se conserva TODO lo útil para diagnóstico (errores y lentas) + 10 % de base.
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 100
+    policies:
+      - name: errores
+        type: status_code
+        status_code: { status_codes: [ERROR] }
+      - name: lentas
+        type: latency
+        latency: { threshold_ms: 500 }
+      - name: muestra-base
+        type: probabilistic
+        probabilistic: { sampling_percentage: 10 }
+
+  # ── (referencia original) tail_sampling por política ────────────────────────
   # Solo activo si el volumen de trazas supera el budget.
   # tail_sampling:
   #   decision_wait: 10s
@@ -170,6 +188,12 @@ exporters:
   #   region: ${env:AWS_REGION}
   #   raw_log: false
 
+  # ── Loki: pilar de logs (OTLP nativo de Loki 3.x; trace_id como metadata) ─
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
   # ── Logging local (desarrollo/debug) ──────────────────────────────────────
   logging:
     verbosity: normal
@@ -192,10 +216,11 @@ service:
         - resource
         - resourcedetection
         - filter/health     # Excluir health checks
+        - tail_sampling     # errores + lentas + 10 % (ver arriba)
         - batch
       exporters:
         - otlp/jaeger            # Jaeger UI para visualización
-        - otlp/tempo        # Tempo (Grafana stack)
+        # - otlp/tempo      # Tempo desactivado en Lab 4: backend redundante con Jaeger (485 % CPU)
         - logging
 
     # ── Pipeline de MÉTRICAS ─────────────────────────────────────────────────
@@ -219,6 +244,7 @@ service:
         - resource
         - batch
       exporters:
+        - otlphttp/loki     # Loki (Grafana Explore, correlación log ↔ traza)
         # - googlecloud     # Cloud Logging (GCP) — requiere credenciales
         # - awscloudwatchlogs # CloudWatch (AWS)
         - logging

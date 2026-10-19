@@ -24,7 +24,7 @@ datasources:
         spanStartTimeShift: "-1m"
         spanEndTimeShift:   "1m"
         customQuery: true
-        query: '{service="${__span.tags.service.name}"} | json | trace_id="${__span.traceId}"'
+        query: '{service_name="${__span.process.serviceName}"} | trace_id="${__span.traceId}"'
       nodeGraph:
         enabled: true
       serviceMap:
@@ -44,3 +44,19 @@ datasources:
             query: "rate(http_requests_total{service=\"$__tags.service\"}[5m])"
       nodeGraph:
         enabled: true
+
+  # Pilar de logs: Loki recibe los logs OTLP desde el Collector.
+  # trace_id llega como structured metadata → enlace directo a la traza en Jaeger.
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    uid: loki
+    jsonData:
+      derivedFields:
+        - name: trace_id
+          matcherType: label
+          matcherRegex: trace_id
+          datasourceUid: jaeger
+          url: "$${__value.raw}"
+          urlDisplayLabel: "Ver traza en Jaeger"

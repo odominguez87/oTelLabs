@@ -5,6 +5,10 @@
 
 > Implementación completa de un pipeline de observabilidad que captura métricas (Prometheus), logs estructurados y trazas distribuidas (Jaeger/Tempo) desde dos microservicios en GCP GKE y AWS ECS, habilitando correlación cross-signal a través del `trace_id`.
 
+**Laboratorios posteriores sobre esta misma base:**
+- Lab 3 — Game Day de Chaos Engineering: [chaos/README.md](chaos/README.md)
+- Lab 4 — Arquitectura observable completa (data-service, service mesh, AIOps, red/seguridad, chaos, IaC GCP/AWS): [lab4/README.md](lab4/README.md)
+
 ---
 
 ## Arquitectura general

@@ -1,0 +1,3 @@
+[20:50:30] D2: 10 % de errores en data-service durante 180 s
+[20:54:01] Rollback. Observando recuperación 60 s…
+[20:55:01] Resultados → /Users/macbook/oTelLabs/lab4/results/exp_d2_errors_data_service.json

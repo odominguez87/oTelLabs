@@ -1,15 +1,26 @@
 global:
   scrape_interval:     15s
-  evaluation_interval: 15s
+  evaluation_interval: 5s
   external_labels:
     cluster:     otel-lab
     environment: development
 
+# Módulo B/C/D: reglas de anomalías, SLO y seguridad
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
-  # OTel Collector expone las métricas de los microservicios
+  # OTel Collector expone las métricas de los microservicios.
+  # 5 s (en vez de 15 s) para cumplir el MTTD objetivo < 2 min.
   - job_name: otel-collector
+    scrape_interval: 5s
     static_configs:
-      - targets: ["otel-collector:8889"]  # Métricas de las apps via Collector
+      - targets: ["otel-collector:8889"]
     relabel_configs:
       - source_labels: [service_name]
         target_label: service
@@ -19,23 +30,26 @@ scrape_configs:
     static_configs:
       - targets: ["otel-collector:8888"]
 
-  # Scraping directo de las apps (redundante, para validar)
-  - job_name: service-a-direct
+  # Service mesh: métricas L7 del sidecar Envoy de data-service
+  - job_name: envoy-mesh
+    scrape_interval: 5s
+    metrics_path: /stats/prometheus
     static_configs:
-      - targets: ["service-a:9090"]
-    metric_relabel_configs:
-      - source_labels: [__name__]
-        regex: "python_gc.*"
-        action: drop  # Reducir cardinalidad
+      - targets: ["envoy-data:9901"]
+        labels: { mesh_workload: data-service }
 
-  - job_name: service-b-direct
+  # AIOps: notificaciones de alerta enriquecidas (ruido static vs aiops)
+  - job_name: alert-enricher
+    scrape_interval: 5s
     static_configs:
-      - targets: ["service-b:9091"]
+      - targets: ["alert-enricher:8080"]
+
+  # Seguridad: CVEs activos de las imágenes (reportes de Trivy)
+  - job_name: cve-exporter
+    scrape_interval: 60s
+    static_configs:
+      - targets: ["cve-exporter:9200"]
 
   - job_name: jaeger
     static_configs:
       - targets: ["jaeger:14269"]
-
-  - job_name: postgres
-    static_configs:
-      - targets: ["postgres-exporter:9187"]

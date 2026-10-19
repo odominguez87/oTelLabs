@@ -1,0 +1,94 @@
+{
+  "experimento": "Módulo B — ruido no correlacionado vs incidente real",
+  "ventana": {
+    "inicio": 1792371055.669465,
+    "fin": 1792371838.105669
+  },
+  "timeline": [
+    {
+      "evento": "ruido: ráfaga de errores rápidos 3 %",
+      "inicio": 1792371145.7264278,
+      "fin": 1792371185.820517,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +350 ms",
+      "inicio": 1792371266.003028,
+      "fin": 1792371306.7301602,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: ráfaga de errores rápidos 5 %",
+      "inicio": 1792371386.796598,
+      "fin": 1792371426.900783,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "ruido: pico de latencia +400 ms",
+      "inicio": 1792371506.939164,
+      "fin": 1792371547.0245152,
+      "tipo": "ruido"
+    },
+    {
+      "evento": "incidente: errores 15 % + latencia (timeout BD)",
+      "inicio": 1792371627.045175,
+      "fin": 1792371748.0844932,
+      "tipo": "incidente"
+    }
+  ],
+  "resumen": {
+    "static": {
+      "notificaciones": 6,
+      "durante_ruido": 4,
+      "durante_incidente": 2,
+      "alertas": [
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T00:52:58.188698+00:00",
+          "evento": "ruido",
+          "trace_id": "dbc7f2ea0e89e1d0c9a2a6ec1a9ec62f"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T00:54:35.328279+00:00",
+          "evento": "ruido",
+          "trace_id": null
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T00:56:53.185355+00:00",
+          "evento": "ruido",
+          "trace_id": "531d55b26fb8993b1b0b85a4a3f37746"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T00:58:43.194111+00:00",
+          "evento": "ruido",
+          "trace_id": "0428a757a4399f5fa4b4e5222605f714"
+        },
+        {
+          "alertname": "DataServiceHighLatencyStatic",
+          "hora": "2026-10-19T01:00:48.191723+00:00",
+          "evento": "incidente",
+          "trace_id": "6f3b49e90d6c9629f26f2f7e030c98a4"
+        },
+        {
+          "alertname": "DataServiceHighErrorRateStatic",
+          "hora": "2026-10-19T01:00:48.203729+00:00",
+          "evento": "incidente",
+          "trace_id": "6f3b49e90d6c9629f26f2f7e030c98a4"
+        }
+      ]
+    },
+    "aiops": {
+      "notificaciones": 0,
+      "durante_ruido": 0,
+      "durante_incidente": 0,
+      "alertas": []
+    }
+  },
+  "reduccion_ruido_pct": 100.0,
+  "incidente_detectado_por_aiops": false,
+  "mttd_aiops_s": null,
+  "alerta_incidente": null
+}
